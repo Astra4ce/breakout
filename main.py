@@ -1,6 +1,6 @@
 # coding=utf-8
 """
-Snake Eater
+Breakout Game
 Made with PyGame
 """
 import pygame, sys, time, random, math
