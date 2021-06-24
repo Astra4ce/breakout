@@ -6,8 +6,8 @@ Made with PyGame
 
 import pygame, sys, time, random, math
 
-#with open('levels.txt') as f:
-  #  levels = f.readlines()
+# with open('levels.txt') as f:
+#  levels = f.readlines()
 
 # Colors (R, G, B)
 black = pygame.Color(0, 0, 0)
@@ -15,7 +15,6 @@ white = pygame.Color(255, 255, 255)
 red = pygame.Color(255, 0, 0)
 green = pygame.Color(0, 255, 0)
 blue = pygame.Color(0, 0, 255)
-
 
 
 class Background:
@@ -28,7 +27,6 @@ class Background:
         self.header_height = self.header.get_height()
         self.bg_width = self.bg.get_width()
         self.bg_height = self.bg.get_height()
-
 
     def draw(self, surface):
         surface.blit(self.rightbg, (canvas.width + self.border_width, 0))
@@ -63,6 +61,7 @@ class Canvas:
             result += 1
         return result
 
+
 class World:
     def __init__(self):
         self.objects = []
@@ -74,6 +73,7 @@ class World:
     def update(self):
         for o in self.objects:
             o.update()
+
 
 class AnimatedLine:
     def __init__(self):
@@ -93,6 +93,7 @@ class AnimatedLine:
     def draw(self, surface):
         pygame.draw.line(surface, white, (self.x, self.y), (self.x2, self.y2))
 
+
 class Block:
     def __init__(self, color, x, y, width, height, visible):
         self.color = color
@@ -108,6 +109,7 @@ class Block:
 
     def update(self):
         pass
+
 
 class Ball:
     def __init__(self, canvas, color, x, y, radius, speed, heading, visible):
@@ -149,37 +151,41 @@ class Ball:
         else:
             assert False, "bad result"
 
-
     def collide_left(self):
         print("collide_left")
         self.heading += math.pi
+
     def collide_left_top(self):
         print("collide_left_top")
         self.heading += math.pi
+
     def collide_top(self):
         print("collide_top")
         self.heading += math.pi
+
     def collide_top_right(self):
         print("collide_top_right")
         self.heading += math.pi
+
     def collide_right(self):
         print("collide_right")
         self.heading += math.pi
+
     def collide_right_bottom(self):
         print("collide_right_bottom")
         self.heading += math.pi
+
     def collide_bottom(self):
         print("collide_bottom")
         self.heading += math.pi
+
     def collide_bottom_left(self):
         print("collide_bottom_left")
         self.heading += math.pi
 
 
-
-
 class Paddle:
-    #represents the paddle
+    # represents the paddle
     def __init__(self, canvas):
         self.x = canvas.width / 2
         self.y = canvas.height - 100
@@ -189,8 +195,8 @@ class Paddle:
     def draw(self, surface):
         # pygame.draw.rect(surface, self.color,
         #                  [self.x - (self.width/2), self.y - (self.height/2), self.width, self.height])
-        x = self.x - (self.paddle_img.get_width()/2) + self.canvas.offset_x
-        y = self.y - (self.paddle_img.get_height()/2) + self.canvas.offset_y
+        x = self.x - (self.paddle_img.get_width() / 2) + self.canvas.offset_x
+        y = self.y - (self.paddle_img.get_height() / 2) + self.canvas.offset_y
         surface.blit(self.paddle_img, (x, y))
 
     def changePosition(self, dx):
@@ -202,11 +208,8 @@ class Paddle:
             temp = (canvas.width - hw)
         self.x = temp
 
-
     def update(self):
         pass
-
-
 
 
 def initialize(window_width, window_height, window_title):
@@ -226,10 +229,6 @@ def initialize(window_width, window_height, window_title):
     return game_window
 
 
-
-
-
-
 def process_event(event):
     if event.type == pygame.QUIT:
         pygame.quit()
@@ -241,10 +240,10 @@ def process_event(event):
         # change_to = 'UP'
         # if event.key == pygame.K_DOWN or event.key == ord('s'):
         # change_to = 'DOWN'
-        #if event.key == pygame.K_LEFT or event.key == ord('a'):
-           # playerPaddle.changePosition(-10)
-       #if event.key == pygame.K_RIGHT or event.key == ord('d'):
-           # playerPaddle.changePosition(10)
+        # if event.key == pygame.K_LEFT or event.key == ord('a'):
+        # playerPaddle.changePosition(-10)
+        # if event.key == pygame.K_RIGHT or event.key == ord('d'):
+        # playerPaddle.changePosition(10)
         # Esc -> Create event to quit the game
         if event.key == pygame.K_ESCAPE:
             pygame.event.post(pygame.event.Event(pygame.QUIT))
@@ -253,6 +252,7 @@ def process_event(event):
             if isinstance(o, AnimatedLine):
                 o.x, o.y = pygame.mouse.get_pos()
 
+
 def process_keyboard_events():
     pressed_keys = pygame.key.get_pressed()
     if pressed_keys[pygame.K_LEFT] or pressed_keys[pygame.K_a]:
@@ -260,8 +260,10 @@ def process_keyboard_events():
     if pressed_keys[pygame.K_RIGHT] or pressed_keys[pygame.K_d]:
         playerPaddle.changePosition(10)
 
+
 def update_world():
     world.update()
+
 
 def refresh_screen(game_window):
     game_window.fill(black)
@@ -282,6 +284,7 @@ def run(game_window):
         # Refresh rate
         fps_controller.tick(30)
 
+
 world = World()
 
 background = Background()
@@ -290,7 +293,7 @@ world.objects.append(background)
 playerPaddle = Paddle(canvas)
 world.objects.append(playerPaddle)
 for b in range(0, 1):
-    #ball = Ball(white, random.randint(0, 1000), random.randint(0, 1000), 10, 2, 2, True)
+    # ball = Ball(white, random.randint(0, 1000), random.randint(0, 1000), 10, 2, 2, True)
     ball = Ball(canvas, white, 200, 200, 10, 2, 2, True)
     world.objects.append(ball)
 for x in range(0, 300, 50):
