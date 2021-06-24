@@ -17,12 +17,39 @@ green = pygame.Color(0, 255, 0)
 blue = pygame.Color(0, 0, 255)
 
 
+
+class Background:
+    def __init__(self):
+        self.bg = pygame.image.load("assets/breakoutbg.png")
+        self.header = pygame.image.load("assets/header.png")
+        self.rightbg = pygame.image.load("assets/rightbg.png")
+        self.leftbg = pygame.image.load("assets/leftbg.png")
+        self.border_width = self.rightbg.get_width()
+        self.header_height = self.header.get_height()
+        self.bg_width = self.bg.get_width()
+        self.bg_height = self.bg.get_height()
+
+
+    def draw(self, surface):
+        surface.blit(self.rightbg, (canvas.width + self.border_width, 0))
+        surface.blit(self.bg, (self.border_width, self.header_height))
+        surface.blit(self.header, (self.border_width, 0))
+        surface.blit(self.leftbg, (0, 0))
+
+    def update(self):
+        pass
+
+
 class Canvas:
-    def __init__(self, x, y, width, height, radius):
+    def __init__(self, x, y, width, height, radius, offset_x, offset_y):
+        self.width = width
+        self.height = height
         self.left = pygame.Rect(x - 100, y, 100 + radius, height)
         self.right = pygame.Rect(x + width - radius, y, 100, height)
         self.top = pygame.Rect(x, y - 100, width, 100 + radius)
         self.bottom = pygame.Rect(x, y + height - radius, width, 100)
+        self.offset_x = offset_x
+        self.offset_y = offset_y
 
     def wall_collision(self, ball):
         result = 0
@@ -153,45 +180,31 @@ class Ball:
 
 class Paddle:
     #represents the paddle
-    def __init__(self, color, x, y, width, height):
-        self.color = color
-        self.width = width
-        self.height = height
-        self.x = x
-        self.y = y
-        #self.image = pygame.Surface([width, height])
-        #self.image.fill(color)
-        #self.image.set_colorkey(color)
-
-        #self.rect = self.image.get_rect()
+    def __init__(self, canvas):
+        self.x = canvas.width / 2
+        self.y = canvas.height - 100
+        self.canvas = canvas
+        self.paddle_img = pygame.image.load("assets/Paddle.png")
 
     def draw(self, surface):
-        pygame.draw.rect(surface, self.color,
-                         [self.x - (self.width/2), self.y - (self.height/2), self.width, self.height])
+        # pygame.draw.rect(surface, self.color,
+        #                  [self.x - (self.width/2), self.y - (self.height/2), self.width, self.height])
+        x = self.x - (self.paddle_img.get_width()/2) + self.canvas.offset_x
+        y = self.y - (self.paddle_img.get_height()/2) + self.canvas.offset_y
+        surface.blit(self.paddle_img, (x, y))
 
     def changePosition(self, dx):
-        self.x += dx
+        temp = self.x + dx
+        hw = (self.paddle_img.get_width() / 2)
+        if temp < hw:
+            temp = hw
+        elif temp > (canvas.width - hw):
+            temp = (canvas.width - hw)
+        self.x = temp
+
 
     def update(self):
         pass
-
-world = World()
-
-canvas = Canvas(0, 0, 400, 700, 10)
-playerPaddle = Paddle(blue, 150, 200, 20, 30)
-world.objects.append(playerPaddle)
-for b in range(0, 1):
-    #ball = Ball(white, random.randint(0, 1000), random.randint(0, 1000), 10, 2, 2, True)
-    ball = Ball(canvas, white, 200, 200, 10, 2, 2, True)
-    world.objects.append(ball)
-for x in range(0, 300, 50):
-    for y in range(0, 200, 20):
-        block = Block(red, x, y, 48, 18, True)
-        world.objects.append(block)
-
-for i in range(0, 1):
-    line = AnimatedLine()
-    world.objects.append(line)
 
 
 
@@ -243,9 +256,9 @@ def process_event(event):
 def process_keyboard_events():
     pressed_keys = pygame.key.get_pressed()
     if pressed_keys[pygame.K_LEFT] or pressed_keys[pygame.K_a]:
-        playerPaddle.changePosition(-5)
+        playerPaddle.changePosition(-10)
     if pressed_keys[pygame.K_RIGHT] or pressed_keys[pygame.K_d]:
-        playerPaddle.changePosition(5)
+        playerPaddle.changePosition(10)
 
 def update_world():
     world.update()
@@ -269,6 +282,27 @@ def run(game_window):
         # Refresh rate
         fps_controller.tick(30)
 
+world = World()
 
-game_window = initialize(400, 700, "breakout")
+background = Background()
+canvas = Canvas(0, 0, background.bg_width, background.bg_height, 10, background.border_width, background.header_height)
+world.objects.append(background)
+playerPaddle = Paddle(canvas)
+world.objects.append(playerPaddle)
+for b in range(0, 1):
+    #ball = Ball(white, random.randint(0, 1000), random.randint(0, 1000), 10, 2, 2, True)
+    ball = Ball(canvas, white, 200, 200, 10, 2, 2, True)
+    world.objects.append(ball)
+for x in range(0, 300, 50):
+    for y in range(0, 200, 20):
+        block = Block(red, x, y, 48, 18, True)
+        world.objects.append(block)
+
+# for i in range(0, 1):
+#     line = AnimatedLine()
+#     world.objects.append(line)
+
+window_width = canvas.width + background.border_width * 2
+window_height = canvas.height + background.header_height
+game_window = initialize(window_width, window_height, "breakout")
 run(game_window)
