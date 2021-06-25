@@ -16,6 +16,48 @@ red = pygame.Color(255, 0, 0)
 green = pygame.Color(0, 255, 0)
 blue = pygame.Color(0, 0, 255)
 
+class CollisionBox:
+    NONE = 0
+    RIGHT = 1
+    LEFT = 2
+    TOP = 4
+    BOTTOM = 8
+    INVALID = 15
+
+    def get_collision(self, x, y):
+        return CollisionBox.INVALID
+
+class BallBox(CollisionBox):
+
+    def __init__(self, rect, margin):
+        self.outside_rect = rect.copy()
+        self.inside_rect = self.outside_rect.inflate(-margin * 2, -margin * 2)
+        self.margin = margin
+
+    def get_collision(self, x, y):
+        if self.inside_rect.collidepoint(x, y):
+            return BallBox.NONE
+
+        result = BallBox.NONE
+        if x < self.inside_rect.x:
+            result |= BallBox.LEFT
+        elif x >= self.inside_rect.right:
+            result |= BallBox.RIGHT
+
+        if y < self.inside_rect.y:
+            result |= BallBox.TOP
+        elif y >= self.inside_rect.bottom:
+            result |= BallBox.BOTTOM
+
+        if result == BallBox.NONE:
+            return BallBox.INVALID
+
+        return result
+
+    def direction_to_dx(self, angle, length):
+        dx = length * math.sin(angle)
+        dy = length * math.cos(angle)
+        return dx, dy
 
 class Background:
     def __init__(self):
