@@ -44,13 +44,13 @@ def build_game_levels():
     return game_levels
 
 
-
 # Colors (R, G, B)
 black = pygame.Color(0, 0, 0)
 white = pygame.Color(255, 255, 255)
 red = pygame.Color(255, 0, 0)
 green = pygame.Color(0, 255, 0)
 blue = pygame.Color(0, 0, 255)
+
 
 class CollisionBox:
     NONE = 0
@@ -62,6 +62,7 @@ class CollisionBox:
 
     def get_collision(self, x, y):
         return CollisionBox.INVALID
+
 
 class BallBox(CollisionBox):
 
@@ -95,6 +96,39 @@ class BallBox(CollisionBox):
         dy = length * math.cos(angle)
         return dx, dy
 
+
+class BlockBox(CollisionBox):
+    def __init__(self, rect, margin):
+        self.inside_rect = rect.copy()
+        self.margin = margin
+        self.top_bottom_rect = pygame.Rect(self.inside_rect.x, self.inside_rect.y - self.margin, self.inside_rect.width,
+                                           self.inside_rect.height + self.margin * 2)
+
+        self.left_right_rect = pygame.Rect(self.inside_rect.x - self.margin, self.inside_rect.y,
+                                           self.inside_rect.width + self.margin * 2, self.inside_rect.height)
+
+    def get_collision(self, x, y):
+        if self.top_bottom_rect.collidepoint(x, y):
+            return BlockBox.TOP | BlockBox.BOTTOM
+        if self.left_right_rect.collidepoint(x, y):
+            return BlockBox.LEFT | BlockBox.RIGHT
+        if self.point_in_circle(x, y, self.inside_rect.x, self.inside_rect.y, self.margin):
+            return BlockBox.TOP | BlockBox.LEFT
+        if self.point_in_circle(x, y, self.inside_rect.x + self.inside_rect.width, self.inside_rect.y, self.margin):
+            return BlockBox.TOP | BlockBox.RIGHT
+        if self.point_in_circle(x, y, self.inside_rect.x, self.inside_rect.y + self.inside_rect.height, self.margin):
+            return BlockBox.LEFT | BlockBox.BOTTOM
+        if self.point_in_circle(x, y, self.inside_rect.x + self.inside_rect.width,
+                                self.inside_rect.y + self.inside_rect.height, self.margin):
+            return BlockBox.RIGHT | BlockBox.BOTTOM
+        return BlockBox.NONE
+
+    def point_in_circle(self, x, y, cx, cy, r):
+        dx = cx - x
+        dy = cy - y
+        return dx * dx + dy * dy <= r * r
+
+
 class Background:
     def __init__(self):
         self.bg = pygame.image.load("assets/breakoutbg.png")
@@ -124,8 +158,45 @@ class Canvas:
         self.ball_box = BallBox(r, radius)
         self.offset_x = offset_x
         self.offset_y = offset_y
+        self.radius = radius
 
 
+class Level:
+    def __init__(self, canvas):
+        self.canvas = canvas
+        self.game_levels = build_game_levels()
+        self.level = self.game_levels[0]
+        import pprint
+        blocks = self.level['blocks']
+        height = self.level['height']
+        width = self.level['width']
+        name = self.level['name']
+        print(canvas.radius)
+        block_width = (self.canvas.width - 300) / width
+        block_height = int(block_width / 2.5)
+        for block in blocks:
+            bx = block['bx']
+            by = block['by']
+            block['rect'] = pygame.Rect(bx * block_width + self.canvas.offset_x + 150,
+                                        by * block_height + self.canvas.offset_y + 20, block_width, block_height)
+            block['box'] = BlockBox(block['rect'], canvas.radius)
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(self.level)
+
+    def draw(self, surface):
+        blocks = self.level['blocks']
+        for block in blocks:
+            pygame.draw.rect(surface, pygame.Color(0, 0, 120), block['rect'])
+
+    def update(self):
+        pass
+
+    def is_colliding_with_block(self, x, y, nx, ny, r):
+        blocks = self.level['blocks']
+        for block in blocks:
+            if block['box'].get_collision(nx, ny) != BallBox.NONE:
+                return True
+        return False
 
 
 class World:
@@ -178,7 +249,7 @@ class Block:
 
 
 class Ball:
-    def __init__(self, canvas, color, x, y, radius, speed, heading, visible):
+    def __init__(self, canvas, level, color, x, y, radius, speed, heading, visible):
         self.color = color
         self.x = x
         self.y = y
@@ -187,28 +258,42 @@ class Ball:
         self.heading = heading
         self.visible = visible
         self.canvas = canvas
+        self.level = level
+        self.motion_enabled = False
         self.dx, self.dy = canvas.ball_box.direction_to_vector(heading, speed)
-
-
-
-
+        self.colliding_with_block = False
 
     def draw(self, surface):
         if self.visible:
-            pygame.draw.circle(surface, self.color, (self.x, self.y), self.radius)
+            if self.colliding_with_block:
+                pygame.draw.circle(surface, pygame.Color(255, 0, 0), (self.x, self.y), self.radius)
+            else:
+                pygame.draw.circle(surface, self.color, (self.x, self.y), self.radius)
 
     def update(self):
-        x = self.x + self.dx
-        y = self.y + self.dy
+        if self.motion_enabled:
+            x = self.x + self.dx
+            y = self.y + self.dy
+        else:
+            x = self.x
+            y = self.y
         result = self.canvas.ball_box.get_collision(x, y)
         if result == BallBox.NONE:
+            result_block = self.level.is_colliding_with_block(self.x, self.y, x, y, self.radius)
+            if result_block:
+                self.colliding_with_block = True
+            else:
+                self.colliding_with_block = False
+
             self.x, self.y = x, y
+
             return
         if result & (BallBox.LEFT | BallBox.RIGHT):
             self.dx = -self.dx
         if result & (BallBox.TOP | BallBox.BOTTOM):
             self.dy = -self.dy
         self.heading = math.asin(self.dy / self.speed)
+
 
 class Paddle:
     # represents the paddle
@@ -274,7 +359,7 @@ def process_event(event):
             pygame.event.post(pygame.event.Event(pygame.QUIT))
     elif event.type == pygame.MOUSEMOTION:
         for o in world.objects:
-            if isinstance(o, AnimatedLine):
+            if isinstance(o, Ball):
                 o.x, o.y = pygame.mouse.get_pos()
 
 
@@ -312,34 +397,30 @@ def run(game_window):
 
 world = World()
 
+radius = 10
 background = Background()
-canvas = Canvas(0, 0, background.bg_width, background.bg_height, 10, background.border_width, background.header_height)
+canvas = Canvas(0, 0, background.bg_width, background.bg_height, radius, background.border_width,
+                background.header_height)
 world.objects.append(background)
 playerPaddle = Paddle(canvas)
 world.objects.append(playerPaddle)
-for b in range(0, 250):
+level = Level(canvas)
+world.objects.append(level)
+for b in range(0, 1):
     # ball = Ball(white, random.randint(0, 1000), random.randint(0, 1000), 10, 2, 2, True)
-    ball = Ball(canvas, white, 200, 300, 10, 5, math.pi * 2 * random.random(), True)
+    ball = Ball(canvas, level, white, 200, 300, radius, 5, math.pi * 2 * random.random(), True)
     world.objects.append(ball)
-for x in range(0, 300, 50):
-    for y in range(0, 200, 20):
-        block = Block(red, x, y, 48, 18, True)
-        world.objects.append(block)
+# for x in range(0, 300, 50):
+#     for y in range(0, 200, 20):
+#         block = Block(red, x, y, 48, 18, True)
+#         world.objects.append(block)
 
 # for i in range(0, 1):
 #     line = AnimatedLine()
 #     world.objects.append(line)
 
 
-
-
-game_levels = build_game_levels()
-import pprint
-pp = pprint.PrettyPrinter(indent=4)
-pp.pprint(game_levels)
-
 window_width = canvas.width + background.border_width * 2
 window_height = canvas.height + background.header_height
 game_window = initialize(window_width, window_height, "breakout")
 run(game_window)
-
