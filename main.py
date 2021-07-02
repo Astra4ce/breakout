@@ -171,22 +171,45 @@ class Level:
         height = self.level['height']
         width = self.level['width']
         name = self.level['name']
+
+
         print(canvas.radius)
-        block_width = (self.canvas.width - 300) / width
-        block_height = int(block_width / 2.5)
+        self.block_width = (self.canvas.width - 300) / width
+        self.block_height = int(self.block_width / 2.5)
+        self.materials = {}
+        self.materials['A'] = [self.load_scaled("A1")]
+        self.materials['B'] = [self.load_scaled("B1")]
+        self.materials['C'] = [self.load_scaled("C1")]
+        self.materials['D'] = [self.load_scaled("D1")]
+        self.materials['E'] = [self.load_scaled("E1")]
+        self.materials['F'] = [self.load_scaled("F1")]
+        self.materials['S'] = [self.load_scaled("S1"), self.load_scaled("S2"), self.load_scaled("S3")]
         for block in blocks:
             bx = block['bx']
             by = block['by']
-            block['rect'] = pygame.Rect(bx * block_width + self.canvas.offset_x + 150,
-                                        by * block_height + self.canvas.offset_y + 20, block_width, block_height)
+            block['rect'] = pygame.Rect(bx * self.block_width + self.canvas.offset_x + 150,
+                                        by * self.block_height + self.canvas.offset_y + 20, self.block_width, self.block_height)
             block['box'] = BlockBox(block['rect'], canvas.radius)
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(self.level)
 
+    def load_scaled(self, name):
+        return pygame.transform.smoothscale(pygame.image.load("assets/" + name + ".png"), (self.block_width, self.block_height))
+
+
     def draw(self, surface):
         blocks = self.level['blocks']
         for block in blocks:
-            pygame.draw.rect(surface, pygame.Color(0, 0, 120), block['rect'])
+            if block['hits'] != 0:
+                pygame.draw.rect(surface, pygame.Color(0, 0, 120), block['rect'])
+                material_name = block['material']
+                material = self.materials[material_name]
+                index = block['hits'] - 1
+                image = material[index]
+                r = block['rect']
+                surface.blit(image, (r.x, r.y))
+
+
 
     def update(self):
         pass
@@ -195,8 +218,9 @@ class Level:
         blocks = self.level['blocks']
         for block in blocks:
             if block['box'].get_collision(nx, ny) != BallBox.NONE:
-                return True
-        return False
+                if block['hits'] > 0:
+                    return block
+        return None
 
 
 class World:
@@ -282,6 +306,8 @@ class Ball:
             result_block = self.level.is_colliding_with_block(self.x, self.y, x, y, self.radius)
             if result_block:
                 self.colliding_with_block = True
+                if result_block['hits'] > 0:
+                    result_block['hits'] -= 1
             else:
                 self.colliding_with_block = False
 
