@@ -128,38 +128,33 @@ class BlockBox(CollisionBox):
         dy = cy - y
         return dx * dx + dy * dy <= r * r
 
-
-class Background:
-    def __init__(self):
+class Canvas:
+    def __init__(self, x, y, radius):
         self.bg = pygame.image.load("assets/breakoutbg.png")
         self.header = pygame.image.load("assets/header.png")
         self.rightbg = pygame.image.load("assets/rightbg.png")
         self.leftbg = pygame.image.load("assets/leftbg.png")
         self.border_width = self.rightbg.get_width()
-        self.header_height = self.header.get_height()
-        self.bg_width = self.bg.get_width()
-        self.bg_height = self.bg.get_height()
+        self.header_height = 0 #self.header.get_height()
+        self.width = self.bg.get_width()
+        self.height = self.bg.get_height()
+        self.ball_box_rect = pygame.Rect(x + self.border_width, y + self.header_height, self.width, self.height)
+        self.ball_box = BallBox(self.ball_box_rect, radius)
+        self.offset_x = x + self.border_width
+        self.offset_y = y + self.header_height
+        self.radius = radius
+
 
     def draw(self, surface):
-        surface.blit(self.rightbg, (canvas.width + self.border_width, 0))
-        surface.blit(self.bg, (self.border_width, self.header_height))
-        surface.blit(self.header, (self.border_width, 0))
-        surface.blit(self.leftbg, (0, 0))
+        # surface.blit(self.rightbg, (window_width - self.border_width, 0))
+        surface.blit(self.bg, (self.offset_x, self.header_height)) #self.border_width
+        surface.blit(self.rightbg, (window_width - self.border_width, 0))
+        surface.blit(self.leftbg, (self.offset_x - self.border_width, 0))
+        #pygame.draw.rect(surface, pygame.Color(0, 100, 0), self.ball_box_rect)
+        #for debugging to show ball box dimensions
 
     def update(self):
         pass
-
-
-class Canvas:
-    def __init__(self, x, y, width, height, radius, offset_x, offset_y):
-        self.width = width
-        self.height = height
-        r = pygame.Rect(x + offset_x, y + offset_y, width, height)
-        self.ball_box = BallBox(r, radius)
-        self.offset_x = offset_x
-        self.offset_y = offset_y
-        self.radius = radius
-
 
 class Level:
     def __init__(self, canvas):
@@ -170,7 +165,10 @@ class Level:
         blocks = self.level['blocks']
         height = self.level['height']
         width = self.level['width']
-        name = self.level['name']
+        self.name = self.level['name']
+        self.score = 0
+        self.lives = 3
+
 
 
         print(canvas.radius)
@@ -192,16 +190,23 @@ class Level:
             block['box'] = BlockBox(block['rect'], canvas.radius)
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(self.level)
+        self.font = pygame.font.SysFont('Comic Sans MS', 25)
 
     def load_scaled(self, name):
         return pygame.transform.smoothscale(pygame.image.load("assets/" + name + ".png"), (self.block_width, self.block_height))
 
 
     def draw(self, surface):
+        textsurface = self.font.render('Score: %06d' % self.score, False, (255, 255, 255))
+        surface.blit(textsurface, (20, 30))
+        textsurface = self.font.render('Lives: %d' % self.lives, False, (255, 255, 255))
+        surface.blit(textsurface, (20, 60))
+        textsurface = self.font.render(self.name, False, (255, 255, 255))
+        surface.blit(textsurface, (20, 0))
         blocks = self.level['blocks']
         for block in blocks:
             if block['hits'] != 0:
-                pygame.draw.rect(surface, pygame.Color(0, 0, 120), block['rect'])
+                #pygame.draw.rect(surface, pygame.Color(0, 0, 120), block['rect'])
                 material_name = block['material']
                 material = self.materials[material_name]
                 index = block['hits'] - 1
@@ -325,12 +330,12 @@ class Paddle:
     # represents the paddle
     def __init__(self, canvas):
         self.x = canvas.width / 2
-        self.y = canvas.height - 100
+        self.y = canvas.height - 60
         self.canvas = canvas
         self.paddle_img = pygame.image.load("assets/Paddle.png")
 
     def draw(self, surface):
-        pygame.draw.rect(surface, pygame.Color(0, 255, 0), self.canvas.ball_box.inside_rect)
+        #pygame.draw.rect(surface, pygame.Color(0, 255, 0), self.canvas.ball_box.inside_rect)
         x = self.x - (self.paddle_img.get_width() / 2) + self.canvas.offset_x
         y = self.y - (self.paddle_img.get_height() / 2) + self.canvas.offset_y
         surface.blit(self.paddle_img, (x, y))
@@ -387,6 +392,8 @@ def process_event(event):
         for o in world.objects:
             if isinstance(o, Ball):
                 o.x, o.y = pygame.mouse.get_pos()
+            if isinstance(o, Level):
+                o.score += 10
 
 
 def process_keyboard_events():
@@ -422,12 +429,11 @@ def run(game_window):
 
 
 world = World()
-
+side_panel_width = 250
 radius = 10
-background = Background()
-canvas = Canvas(0, 0, background.bg_width, background.bg_height, radius, background.border_width,
-                background.header_height)
-world.objects.append(background)
+pygame.font.init()
+canvas = Canvas(side_panel_width, 0, radius)
+world.objects.append(canvas)
 playerPaddle = Paddle(canvas)
 world.objects.append(playerPaddle)
 level = Level(canvas)
@@ -446,7 +452,7 @@ for b in range(0, 1):
 #     world.objects.append(line)
 
 
-window_width = canvas.width + background.border_width * 2
-window_height = canvas.height + background.header_height
+window_width = side_panel_width + canvas.width + canvas.border_width * 2
+window_height = canvas.height + canvas.header_height
 game_window = initialize(window_width, window_height, "breakout")
 run(game_window)
