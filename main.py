@@ -4,7 +4,24 @@ Breakout Game
 Made with PyGame
 """
 
-import pygame, sys, time, random, math
+import pygame, sys, time, random, math, pprint
+
+
+class Game:
+    INTRO = 1
+    PREGAME = 2
+    GAME = 3
+    SETTINGS = 4
+    PAUSE = 5
+    LEVEL_CLEARED = 6
+    WIN = 7
+    LOSS = 8
+    EXIT_PROMPT = 9
+
+    state = PREGAME
+
+
+# single global game object that represents global game state
 
 
 def build_game_levels():
@@ -227,31 +244,50 @@ class Canvas:
         self.radius = radius
 
     def draw(self, surface):
-        # surface.blit(self.rightbg, (window_width - self.border_width, 0))
-        surface.blit(self.bg, (self.offset_x, self.header_height))  # self.border_width
-        surface.blit(self.rightbg, (window_width - self.border_width, 0))
-        surface.blit(self.leftbg, (self.offset_x - self.border_width, 0))
-        # pygame.draw.rect(surface, pygame.Color(0, 100, 0), self.ball_box_rect)
-        # for debugging to show ball box dimensions
+        if Game.state in (Game.GAME, Game.PREGAME):
+            # surface.blit(self.rightbg, (window_width - self.border_width, 0))
+            surface.blit(self.bg, (self.offset_x, self.header_height))  # self.border_width
+            surface.blit(self.rightbg, (window_width - self.border_width, 0))
+            surface.blit(self.leftbg, (self.offset_x - self.border_width, 0))
+            # pygame.draw.rect(surface, pygame.Color(0, 100, 0), self.ball_box_rect)
+            # for debugging to show ball box dimensions
+        elif Game.state == Game.LEVEL_CLEARED:
+            pygame.draw.rect(surface, pygame.Color(0, 0, 0), (0, 0, self.width, self.height))
 
     def update(self):
         pass
 
 
 class Level:
-    def __init__(self, canvas):
+    def __init__(self, world, canvas, radius):
+        self.world = world
         self.canvas = canvas
         self.game_levels = build_game_levels()
-        self.level = self.game_levels[0]
-        import pprint
+        self.current_level = 0
+        self.level_count = len(self.game_levels)
+        self.level = None
+        self.name = None
+        self.score = 0
+        self.lives = 3
+        self.materials = None
+        self.block_width = None
+        self.block_height = None
+        self.radius = radius
+        self.resting_ball = None
+        self.active_balls = 0
+
+        print(canvas.radius)
+
+        self.font = pygame.font.SysFont('Comic Sans MS', 25)
+        self.new_level(self.current_level)
+
+    def new_level(self, level):
+        self.current_level = level
+        self.level = self.game_levels[self.current_level]
         blocks = self.level['blocks']
         height = self.level['height']
         width = self.level['width']
         self.name = self.level['name']
-        self.score = 0
-        self.lives = 3
-
-        print(canvas.radius)
         self.block_width = (self.canvas.width - 300) / width
         self.block_height = int(self.block_width / 2.5)
         self.materials = {}
@@ -271,13 +307,21 @@ class Level:
             block['box'] = BlockBox(block['rect'], canvas.radius)
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(self.level)
-        self.font = pygame.font.SysFont('Comic Sans MS', 25)
+        self.active_balls = 0
+        self.create_resting_ball()
+
+    def create_resting_ball(self):
+        bx = self.canvas.width / 2 + self.canvas.offset_x
+        by = self.canvas.height - 60 + self.canvas.offset_y - 25
+        self.resting_ball = self.create_ball(bx, by, 0, math.pi * 0.75, True)
 
     def load_scaled(self, name):
         return pygame.transform.smoothscale(pygame.image.load("assets/" + name + ".png"),
                                             (self.block_width, self.block_height))
 
     def draw(self, surface):
+        if Game.state not in (Game.GAME, Game.PREGAME, Game.PAUSE, Game.EXIT_PROMPT):
+            return
         textsurface = self.font.render('Score: %06d' % self.score, False, (255, 255, 255))
         surface.blit(textsurface, (20, 30))
         textsurface = self.font.render('Lives: %d' % self.lives, False, (255, 255, 255))
@@ -296,7 +340,10 @@ class Level:
                 surface.blit(image, (r.x, r.y))
 
     def update(self):
-        pass
+        if Game.state == Game.GAME:
+            if self.resting_ball:
+                self.resting_ball.set_speed(5)
+                self.resting_ball = None
 
     def is_colliding_with_block(self, x, y, nx, ny, r):
         blocks = self.level['blocks']
@@ -305,6 +352,38 @@ class Level:
                 if block['hits'] > 0:
                     return block
         return None
+
+    def is_level_cleared(self):
+        blocks = self.level['blocks']
+        for block in blocks:
+            if block['hits'] != 0:
+                return False
+        return True
+
+    def level_cleared(self):
+        if self.current_level == self.level_count - 1:
+            Game.state = Game.WIN
+        else:
+            Game.state = Game.LEVEL_CLEARED
+            self.new_level(self.current_level + 1)
+
+    def create_ball(self, x, y, speed, heading, visible):
+        self.active_balls += 1
+        # math.pi * 2 * random.random()
+        ball = Ball(self.canvas, self, white, x, y, self.radius, speed, heading, visible)
+        self.world.objects.append(ball)
+        return ball
+
+    def delete_ball(self, ball):
+        self.world.objects.remove(ball)
+        self.active_balls -= 1
+        if self.active_balls == 0:
+            self.lives -= 1
+            if self.lives == 0:
+                Game.state = Game.LOSS
+            else:
+                Game.state = Game.PREGAME
+                self.create_resting_ball()
 
 
 class World:
@@ -372,6 +451,8 @@ class Ball:
         self.colliding_with_block = False
 
     def draw(self, surface):
+        if Game.state not in (Game.GAME, Game.PREGAME):
+            return
         if self.visible:
             if self.colliding_with_block:
                 pygame.draw.circle(surface, pygame.Color(255, 0, 0), (self.x, self.y), self.radius)
@@ -379,7 +460,11 @@ class Ball:
                 pygame.draw.circle(surface, self.color, (self.x, self.y), self.radius)
 
     def update(self):
+        if Game.state != Game.GAME:
+            return
         if not self.motion_enabled:
+            return
+        if self.speed == 0:
             return
         x = self.x + self.dx
         y = self.y + self.dy
@@ -399,9 +484,15 @@ class Ball:
                     self.colliding_with_block = True
                     if result_block['hits'] > 0:
                         result_block['hits'] -= 1
+                        if result_block['hits'] == 0:
+                            if self.level.is_level_cleared():
+                                level.level_cleared()
             else:
                 self.x, self.y = x, y
 
+            return
+        if result & BallBox.BOTTOM:
+            self.level.delete_ball(self)
             return
         if result & (BallBox.LEFT | BallBox.RIGHT):
             self.dx = -self.dx
@@ -409,16 +500,26 @@ class Ball:
             self.dy = -self.dy
         self.heading = math.asin(self.dy / self.speed)
 
+    def move(self, x, y):
+        self.x, self.y = x, y
+
+    def set_speed(self, speed):
+        self.speed = speed
+        self.dx, self.dy = self.canvas.ball_box.direction_to_vector(self.heading, self.speed)
+
 
 class Paddle:
     # represents the paddle
-    def __init__(self, canvas):
+    def __init__(self, canvas, level):
+        self.level = level
         self.x = canvas.width / 2
         self.y = canvas.height - 60
         self.canvas = canvas
         self.paddle_img = pygame.image.load("assets/Paddle.png")
 
     def draw(self, surface):
+        if Game.state not in (Game.GAME, Game.PREGAME, Game.PAUSE):
+            return
         # pygame.draw.rect(surface, pygame.Color(0, 255, 0), self.canvas.ball_box.inside_rect)
         x = self.x - (self.paddle_img.get_width() / 2) + self.canvas.offset_x
         y = self.y - (self.paddle_img.get_height() / 2) + self.canvas.offset_y
@@ -432,6 +533,8 @@ class Paddle:
         elif temp > (canvas.width - hw):
             temp = (canvas.width - hw)
         self.x = temp
+        if self.level.resting_ball:
+            self.level.resting_ball.move(self.x + self.canvas.offset_x, self.y + self.canvas.offset_y - 25)
 
     def update(self):
         pass
@@ -454,39 +557,56 @@ def initialize(window_width, window_height, window_title):
     return game_window
 
 
+def process_keyboard_event(event):
+    # W -> Up; S -> Down; A -> Left; D -> Right
+    # if event.key == pygame.K_UP or event.key == ord('w'):
+    # change_to = 'UP'
+    # if event.key == pygame.K_DOWN or event.key == ord('s'):
+    # change_to = 'DOWN'
+    # if event.key == pygame.K_LEFT or event.key == ord('a'):
+    # playerPaddle.changePosition(-10)
+    # if event.key == pygame.K_RIGHT or event.key == ord('d'):
+    # playerPaddle.changePosition(10)
+    # Esc -> Create event to quit the game
+    if Game.state == Game.EXIT_PROMPT:
+        if event.key == pygame.K_y:
+            pygame.event.post(pygame.event.Event(pygame.QUIT))
+        else:
+            Game.state = Game.GAME
+    elif Game.state == Game.LEVEL_CLEARED:
+        Game.state = Game.PREGAME
+    elif Game.state == Game.PREGAME:
+        if event.key == pygame.K_SPACE:
+            Game.state = Game.GAME
+
+
+def process_mouse_event(event):
+    for o in world.objects:
+        if isinstance(o, Ball):
+            if not o.motion_enabled:
+                o.x, o.y = pygame.mouse.get_pos()
+        if isinstance(o, Level):
+            o.score += 10
+
+
 def process_event(event):
     if event.type == pygame.QUIT:
         pygame.quit()
         sys.exit()
     # Whenever a key is pressed down
     elif event.type == pygame.KEYDOWN:
-        # W -> Up; S -> Down; A -> Left; D -> Right
-        # if event.key == pygame.K_UP or event.key == ord('w'):
-        # change_to = 'UP'
-        # if event.key == pygame.K_DOWN or event.key == ord('s'):
-        # change_to = 'DOWN'
-        # if event.key == pygame.K_LEFT or event.key == ord('a'):
-        # playerPaddle.changePosition(-10)
-        # if event.key == pygame.K_RIGHT or event.key == ord('d'):
-        # playerPaddle.changePosition(10)
-        # Esc -> Create event to quit the game
-        if event.key == pygame.K_ESCAPE:
-            pygame.event.post(pygame.event.Event(pygame.QUIT))
+        process_keyboard_event(event)
     elif event.type == pygame.MOUSEMOTION:
-        for o in world.objects:
-            if isinstance(o, Ball):
-                if not o.motion_enabled:
-                    o.x, o.y = pygame.mouse.get_pos()
-            if isinstance(o, Level):
-                o.score += 10
+        process_mouse_event(event)
 
 
-def process_keyboard_events():
-    pressed_keys = pygame.key.get_pressed()
-    if pressed_keys[pygame.K_LEFT] or pressed_keys[pygame.K_a]:
-        playerPaddle.changePosition(-10)
-    if pressed_keys[pygame.K_RIGHT] or pressed_keys[pygame.K_d]:
-        playerPaddle.changePosition(10)
+def process_keyboard_state():
+    if Game.state in (Game.GAME, Game.PREGAME):
+        pressed_keys = pygame.key.get_pressed()
+        if pressed_keys[pygame.K_LEFT] or pressed_keys[pygame.K_a]:
+            playerPaddle.changePosition(-10)
+        if pressed_keys[pygame.K_RIGHT] or pressed_keys[pygame.K_d]:
+            playerPaddle.changePosition(10)
 
 
 def update_world():
@@ -504,7 +624,7 @@ def run(game_window):
     while True:
         for event in pygame.event.get():
             process_event(event)
-        process_keyboard_events()
+        process_keyboard_state()
         update_world()
         refresh_screen(game_window)
         # Refresh game screen
@@ -517,16 +637,16 @@ world = World()
 side_panel_width = 250
 radius = 10
 pygame.font.init()
+
 canvas = Canvas(side_panel_width, 0, radius)
 world.objects.append(canvas)
-playerPaddle = Paddle(canvas)
-world.objects.append(playerPaddle)
-level = Level(canvas)
+
+level = Level(world, canvas, radius)
 world.objects.append(level)
-for b in range(0, 64):
-    # ball = Ball(white, random.randint(0, 1000), random.randint(0, 1000), 10, 2, 2, True)
-    ball = Ball(canvas, level, white, 300, 300, radius, 5, math.pi * 2 * random.random(), True)
-    world.objects.append(ball)
+
+playerPaddle = Paddle(canvas, level)
+world.objects.append(playerPaddle)
+
 # for x in range(0, 300, 50):
 #     for y in range(0, 200, 20):
 #         block = Block(red, x, y, 48, 18, True)
