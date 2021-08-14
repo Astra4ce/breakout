@@ -23,6 +23,8 @@ class Game:
 
 # single global game object that represents global game state
 
+def distance_between_points(x1, y1, x2, y2):
+    return math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
 
 def build_game_levels():
     game_levels = []
@@ -275,6 +277,7 @@ class Level:
         self.radius = radius
         self.resting_ball = None
         self.active_balls = 0
+        self.paddle = None
 
         print(canvas.radius)
 
@@ -351,6 +354,15 @@ class Level:
             if block['box'].get_collision(nx, ny) != BallBox.NONE:
                 if block['hits'] > 0:
                     return block
+        return None
+
+    def is_colliding_with_paddle(self, x, y, nx, ny, r):
+        hc = self.paddle.get_hit_circle()
+        if abs(nx - hc[0]) > hc[3] or ny > (hc[1] - hc[2] + 10):
+            return None
+        d = distance_between_points(nx, ny, hc[0], hc[1])
+        if d <= (hc[2] + r):
+            return hc
         return None
 
     def is_level_cleared(self):
@@ -488,7 +500,58 @@ class Ball:
                             if self.level.is_level_cleared():
                                 level.level_cleared()
             else:
-                self.x, self.y = x, y
+                hc = self.level.is_colliding_with_paddle(self.x, self.y, x, y, self.radius)
+                if hc:
+                    x1, y1 = hc[0], hc[1]
+                    x2, y2 = self.x, self.y
+                    R = hc[2]
+                    pw = hc[3]
+
+                    r = self.radius
+
+                    if abs(x1 - x2) < 0.001:
+                        # handle as vertical collision
+                        ny = y1-(R+r)
+                        self.y = ny
+                        self.dy = -self.dy  # handle bounce straight up
+                    else:
+                        m = (y2 - y1) / (x2 - x1)
+                        a = 1 + m * m
+                        b = -(2 * x1 + 2 * m*m * x1)
+                        c1 = x1*x1 + m*m * x1*x1 - R*R
+                        c2 = x1*x1 + m*m * x1*x1 - (R+r)*(R+r)
+
+                        disc1 = math.sqrt(b*b - 4 * a * c1)
+                        disc2 = math.sqrt(b*b - 4 * a * c2)
+
+                        sol1_x1 = (-b + disc2) / (2 * a)
+                        sol1_x2 = (-b - disc2) / (2 * a)
+
+                        sol2_x1 = (-b + disc2) / (2 * a)
+                        sol2_x2 = (-b - disc2) / (2 * a)
+
+                        sol1_y1 = m * (sol1_x1 - x1) + y1
+                        sol1_y2 = m * (sol1_x2 - x1) + y1
+
+                        sol2_y1 = m * (sol2_x1 - x1) + y1
+                        sol2_y2 = m * (sol2_x2 - x1) + y1
+
+                        # self.x, self.y, self.dx, self.dy where ball is now and where it wants to go
+                        if sol2_y1 < sol2_y2:
+                            # sol2_x1, sol2_y1
+                            offset = min(pw, (sol2_x1 - x1)) if sol2_x1 > x1 else max(-pw, (sol2_x1-x1))
+                            self.dx += offset * 0.1
+                            self.x = sol2_x1
+                            self.y = sol2_y1
+                        else:
+                            # sol2_x2, sol2_y2
+                            offset = min(pw, (sol2_x2 - x1)) if sol2_x2 > x1 else max(-pw, (sol2_x2-x1))
+                            self.dx += offset * 0.1
+                            self.x = sol2_x2
+                            self.y = sol2_y2
+                        self.dy = -self.dy  # ball always bounces in y direction
+                else:
+                    self.x, self.y = x, y
 
             return
         if result & BallBox.BOTTOM:
@@ -516,6 +579,7 @@ class Paddle:
         self.y = canvas.height - 60
         self.canvas = canvas
         self.paddle_img = pygame.image.load("assets/Paddle.png")
+        level.paddle = self
 
     def draw(self, surface):
         if Game.state not in (Game.GAME, Game.PREGAME, Game.PAUSE):
@@ -523,7 +587,15 @@ class Paddle:
         # pygame.draw.rect(surface, pygame.Color(0, 255, 0), self.canvas.ball_box.inside_rect)
         x = self.x - (self.paddle_img.get_width() / 2) + self.canvas.offset_x
         y = self.y - (self.paddle_img.get_height() / 2) + self.canvas.offset_y
+        hit_circle = self.get_hit_circle()
+        # hit circle don't remove this code for debugging
+        # pygame.draw.circle(surface, pygame.Color(0, 0, 255), (hit_circle[0], hit_circle[1]), hit_circle[2])
         surface.blit(self.paddle_img, (x, y))
+
+    def get_hit_circle(self):
+        cx = self.x + self.canvas.offset_x
+        cy = self.y - (self.paddle_img.get_height() / 2) + self.canvas.offset_y + 300
+        return cx, cy, 300, 10 + self.paddle_img.get_width() / 2
 
     def changePosition(self, dx):
         temp = self.x + dx
