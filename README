@@ -1,0 +1,44 @@
+Overview
+--------
+
+This simple breakout clone game was created by Julia Gurando to experiment with python
+programming and specifically game engine pygame.
+
+
+Virtual Environment venv
+------------------------
+
+To create virtual environment:
+
+    cd breakout
+    python3 -m venv venv
+
+If python3 is not installed on your system you may have to first install it.
+If your system does have python version 3 but its not called python3 specify python interpreter name / path explicitly
+when running above command.
+
+Once virtual environment has been created, you will have venv subdirectory created under breakout.
+Before it can be used it has to be activated:
+
+To activate virtual environment from command line:
+
+on Windows run the following batch file from command line:
+
+    venv\Scripts\activate.bat
+
+On linux or mac run the following command from terminal:
+
+    source venv/bin/activate
+
+To deactivate virtual environment run "deactivate" command or just close the command line / terminal window.
+
+Once environment was activated we should install pygame which can be done using pip:
+
+    pip install pygame
+
+This command will install pygame inside python virtual environment will be made to the computer.
+
+To run the game just execute:
+
+    cd breakout
+    python main.py
